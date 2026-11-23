@@ -5,54 +5,21 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\Rule;
 use Session;
 use App\Models\NilaiUnsur;
+use App\Support\Skm;
 
 
 class NilaiUnsurController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-               error_reporting(0);
+        $query = Skm::query($request);
+        $hasil = Skm::hitung($query);
+        $selects = (clone $query)->orderBy('created_at')->paginate(10)->appends($request->query());
 
-$startDate = '2024-01-01';
-
-$endDate = '2024-10-03';
-
-if ($_GET['tw'] == null) {
-    $today = date('Y-m-d', strtotime('+1 days'));
-    $endDate = $today;
-} elseif ($_GET['tw'] == 1) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-03-31';
-} elseif ($_GET['tw'] == 2) {
-    $startDate = $_GET['Tahun'] . '-04-01';
-    $endDate = $_GET['Tahun'] . '-06-31';
-} elseif ($_GET['tw'] == 3) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-06-31';
-} elseif ($_GET['tw'] == 4) {
-    $startDate = $_GET['Tahun'] . '-07-01';
-    $endDate = $_GET['Tahun'] . '-09-31';
-} elseif ($_GET['tw'] == 5) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-09-31';
-} elseif ($_GET['tw'] == 6) {
-    $startDate = $_GET['Tahun'] . '-10-01';
-    $endDate = $_GET['Tahun'] . '-12-31';
-} elseif ($_GET['tw'] == 7) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-12-31';
-}        $selects = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->paginate(10);
-
-        if($_GET['Tahun']==2023 or $_GET['Tahun']==2025){
-            $selects = DB::table('2023')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->paginate(10);}
-
-        return view('NilaiUnsur.index', compact('selects'));
+        return view('NilaiUnsur.index', compact('selects', 'hasil'));
     }
 
 
@@ -80,69 +47,32 @@ if ($_GET['tw'] == null) {
      * @return void
      */
     public function store(Request $request)
-     {
-        // echo ("request");
-        // return $request->post();
-        // return $request->jenkel['jenkel'];
-
-        $this->validate($request, [
-            'nik' => 'required|string|min:18',
-            'nik' => 'required|string|max:18',
-            'nama' => 'required',
-            'jenisPelayanan' => 'required',
-            'nohp' => 'required',
-            'jenkel' => 'required',
-            'alamat' => 'required',
-            'usia' => 'required',
-            'u1' => 'required',
-            'u2' => 'required',
-            'u3' => 'required',
-            'u4' => 'required',
-            'u5' => 'required',
-            'u6' => 'required',
-            'u7' => 'required',
-            'u8' => 'required',
-            'u9' => 'required',
-            'saran' => 'required',
-        ]);
-
-
-        $data = new NilaiUnsur();
-
-        // $data->nm_kelas = $request->nm_kelas;
-        // $data->ket = $request->ket;
-        // $data->save();
-        // return redirect()->back();
-
-        $store = NilaiUnsur::create([
-            'jenisPelayanan' => $request->jenisPelayanan,
-            'nama' => $request->nama,
-            'alamat' => $request->alamat,
-            'pekerjaan' => $request->pekerjaan,
-            'jenkel' => $request->jenkel['jenkel'],
-            'usia' => $request->usia,
-            'nohp' => $request->nohp,
-            'pendidikan' => $request->pendidikan,
-            'nik' => $request->nik,
-            'u1' => $request->u1,
-            'u2' => $request->u2,
-            'u3' => $request->u3,
-            'u4' => $request->u4,
-            'u5' => $request->u5,
-            'u6' => $request->u6,
-            'u7' => $request->u7,
-            'u8' => $request->u8,
-            'u9' => $request->u9,
-            'saran' => $request->saran,
-        ]);
-
-        if ($store) {
-            //redirect dengan pesan sukses
-            return redirect('/terimakasih');
-        } else {
-        // //     //redirect dengan pesan error
-            return redirect('/terimakasih');
+    {
+        $aturan = [
+            'jenisPelayanan' => ['required', Rule::in(Skm::jenisLayanan())],
+            'disabilitas' => ['required', Rule::in(Skm::opsi('disabilitas'))],
+            'jenis_disabilitas' => ['nullable', 'required_if:disabilitas,Ya', Rule::in(Skm::opsi('jenis_disabilitas'))],
+            'saran' => ['nullable', 'string', 'max:2000'],
+        ];
+        foreach (['jenkel', 'pendidikan', 'usia', 'pekerjaan'] as $field) {
+            $aturan[$field] = ['required', Rule::in(Skm::opsi($field))];
         }
+        foreach (array_keys(Skm::unsur()) as $u) {
+            $aturan[$u] = ['required', 'integer', Rule::in(array_keys(Skm::JAWABAN))];
+        }
+
+        $data = $request->validate($aturan);
+
+        // tanggal menerima layanan = tanggal responden mengisi survei
+        $data['tanggal_layanan'] = now()->toDateString();
+
+        if ($data['disabilitas'] !== 'Ya') {
+            $data['jenis_disabilitas'] = null;
+        }
+
+        NilaiUnsur::create($data);
+
+        return redirect('/terimakasih');
     }
 
     /**

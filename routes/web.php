@@ -6,56 +6,41 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes
+| Halaman publik
 |--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "web" middleware group. Make something great!
-|
 */
 
 Route::get('/', [DashboardController::class, 'welcome']);
 Route::get('/remake', [DashboardController::class, 'welcome']);
+Route::get('/portal', fn () => view('portal'));
+Route::get('/skm', fn () => view('skm'));
+Route::get('/terimakasih', fn () => view('terimakasih'));
 
-Route::get('/login', function () {
-    return view('login');
+// dashboard publik (hasil SKM)
+Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
+
+// kirim jawaban survei
+Route::post('nilaiUnsur', [NilaiUnsurController::class, 'store'])->name('nilaiUnsur.store');
+
+// login admin (dibatasi 10 percobaan per menit)
+Route::get('/login', [DashboardController::class, 'login'])->name('login');
+Route::post('dashboard', [DashboardController::class, 'store'])->name('dashboard.store')->middleware('throttle:10,1');
+Route::post('/logout', [DashboardController::class, 'logout'])->name('logout');
+
+/*
+|--------------------------------------------------------------------------
+| Halaman admin: wajib login
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('admin')->group(function () {
+    Route::get('dashboardAdmin/create', [DashboardController::class, 'create'])->name('dashboardAdmin.create');
+    Route::get('nilaiUnsur', [NilaiUnsurController::class, 'index'])->name('nilaiUnsur.index');
+    Route::get('nilaiRekap', [NilaiController::class, 'index'])->name('nilaiRekap.index');
+    Route::resource('rekapTotal', RekapTotalController::class)->only(['index', 'destroy']);
+    Route::resource('pengaturanAdmin', PengaturanController::class)->only(['index', 'store', 'update', 'destroy']);
+
+    Route::get('export', [WordController::class, 'export'])->name('export');
+    Route::get('exportResume', [ExportController::class, 'exportResume'])->name('exportResume');
+    Route::get('exportNilaiUnsur', [ExportController::class, 'exportNilaiUnsur'])->name('exportNilaiUnsur');
 });
-
-Route::get('/skm', function () {
-    return view('skm');
-});
-
-Route::get('/terimakasih', function () {
-    return view('terimakasih');
-});
-
-// Route::get('word', function () {
-//     return view('word');
-// });
-
-Route::get('export', [WordController::class,'export'])->name('export');
-// Route::get('exportword', 'exportword')->name('exportword');
-
-
-Route::resource('dashboard', DashboardController::class);
-Route::resource('dashboardAdmin', DashboardController::class);
-Route::resource('jenisKelamin', JenisKelaminController::class);
-Route::resource('usia', UsiaController::class);
-Route::resource('pekerjaan', PekerjaanController::class);
-Route::resource('pendidikan', PendidikanController::class);
-Route::resource('saranDanMasukan', SaranMasukanController::class);
-Route::resource('nilaiRekap', NilaiController::class);
-Route::resource('nilaiUnsur', NilaiUnsurController::class);
-Route::resource('rekapTotal', RekapTotalController::class);
-Route::resource('pengaturanAdmin', PengaturanController::class);
-
-Route::controller(ExportController::class)->group(function(){
-    Route::get('exportJenkel', 'exportJenkel')->name('exportJenkel');
-    Route::get('exportUsia', 'exportUsia')->name('exportUsia');
-    Route::get('exportPekerjaan', 'exportPekerjaan')->name('exportPekerjaan');
-    Route::get('exportPendidikan', 'exportPendidikan')->name('exportPendidikan');
-    Route::get('exportSaranMasukan', 'exportSaranMasukan')->name('exportSaranMasukan');
-    Route::get('exportResume', 'exportResume')->name('exportResume');
-});
-

@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Kyslik\ColumnSortable\Sortable;
 
 class NilaiUnsur extends Model
 {
@@ -14,23 +13,25 @@ class NilaiUnsur extends Model
 
     protected $fillable = [
             'jenisPelayanan',
-            'nama' ,
-            'alamat' ,
-            'pekerjaan' ,
-            'jenkel' ,
-            'usia' ,
-            'nohp' ,
-            'pendidikan' ,
-            'nik' ,
-            'u1' ,
-            'u2' ,
-            'u3' ,
-            'u4' ,
-            'u5' ,
-            'u6' ,
-            'u7' ,
-            'u8' ,
-            'u9' ,
-            'saran' ,
+            'tanggal_layanan',
+            'jenkel',
+            'pendidikan',
+            'usia',
+            'pekerjaan',
+            'disabilitas',
+            'jenis_disabilitas',
+            'u1',
+            'u2',
+            'u3',
+            'u4',
+            'u5',
+            'u6',
+            'u7',
+            'u8',
+            'u9',
+            'u10',
+            'u11',
+            'u12',
+            'saran',
     ];
 }

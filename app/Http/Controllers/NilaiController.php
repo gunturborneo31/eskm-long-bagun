@@ -6,49 +6,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Session;
 use App\Models\NilaiUnsur;
+use App\Support\Skm;
 
 
 class NilaiController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-               error_reporting(0);
+        $hasil = Skm::hitung(Skm::query($request));
 
-$startDate = '2024-01-01';
-
-$endDate = '2024-10-03';
-
-if ($_GET['tw'] == null) {
-    $today = date('Y-m-d', strtotime('+1 days'));
-    $endDate = $today;
-} elseif ($_GET['tw'] == 1) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-03-31';
-} elseif ($_GET['tw'] == 2) {
-    $startDate = $_GET['Tahun'] . '-04-01';
-    $endDate = $_GET['Tahun'] . '-06-31';
-} elseif ($_GET['tw'] == 3) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-06-31';
-} elseif ($_GET['tw'] == 4) {
-    $startDate = $_GET['Tahun'] . '-07-01';
-    $endDate = $_GET['Tahun'] . '-09-31';
-} elseif ($_GET['tw'] == 5) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-09-31';
-} elseif ($_GET['tw'] == 6) {
-    $startDate = $_GET['Tahun'] . '-10-01';
-    $endDate = $_GET['Tahun'] . '-12-31';
-} elseif ($_GET['tw'] == 7) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-12-31';
-}
-
-        $selects = DB::table('nilaiUnsur')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->paginate(20);
-
-        return view('Nilai.index', compact('selects'));
+        return view('Nilai.index', compact('hasil'));
     }
 
 

@@ -21,10 +21,10 @@
         <div class="container h-full ">
             <div class="grid-2 flex h-full items-center justify-stretch">
                 <!-- Left column container with background-->
-                <div class="w-1/2 block grid-1 flex h-full items-center justify-stretch  bg-[#2b885b] bg-no-repeat"
+                <div class="w-1/2 block grid-1 flex h-full items-center justify-stretch  bg-[#137A5E] bg-no-repeat"
                     style="background-image:
-        radial-gradient(at -30% -30%, #4da279, transparent 80%),
-        radial-gradient(at 130% 150%, #4da279, transparent 80%);">
+        radial-gradient(at -30% -30%, #137A5E, transparent 80%),
+        radial-gradient(at 130% 150%, #137A5E, transparent 80%);">
                     <div class="w-full">
                         <div class="flex justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
@@ -51,20 +51,25 @@
                     <form method="POST" action="{{ route('dashboard.store') }}" class="justify-center"
                         enctype="multipart/form-data">
                         @csrf
+                        @if ($errors->any())
+                            <div class="mb-6 rounded-lg bg-red-100 px-4 py-3 text-lg font-semibold text-red-800">
+                                {{ $errors->first() }}
+                            </div>
+                        @endif
                         <!-- Email input -->
                         <div class="mb-6">
                             <label class="text-2xl">Username</label>
-                            <input type="text" name="username"
-                                class="peer mt-2 block min-h-[auto] w-full rounded-lg  bg-transparent px-3 py-[0.32rem] leading-[3]  border border-2 border-[#4da279]"
-                                id="exampleFormControlInput3" placeholder="Username" />
+                            <input type="text" name="username" value="{{ old('username') }}" required autocomplete="username"
+                                class="peer mt-2 block min-h-[auto] w-full rounded-lg  bg-transparent px-3 py-[0.32rem] leading-[3]  border border-2 border-[#137A5E]"
+                                id="login-username" placeholder="Username" />
                         </div>
 
                         <!-- Password input -->
                         <div class="mb-6">
                             <label class="text-2xl">Password</label>
-                            <input type="password" name="password"
-                                class="peer mt-2 block min-h-[auto] w-full rounded-lg  bg-transparent px-3 py-[0.32rem] leading-[3]  border border-2 border-[#4da279]"
-                                id="exampleFormControlInput3" placeholder="Username" />
+                            <input type="password" name="password" required autocomplete="current-password"
+                                class="peer mt-2 block min-h-[auto] w-full rounded-lg  bg-transparent px-3 py-[0.32rem] leading-[3]  border border-2 border-[#137A5E]"
+                                id="login-password" placeholder="Password" />
                         </div>
 
                         <!-- Submit button -->
@@ -74,11 +79,11 @@
                         ?>
 
                         <button type="submit"
-                            class="text-2xl inline-block w-full rounded-lg h-16  px-7 pb-2.5 pt-3 font-medium uppercase text-white font-black  bg-[#2b885b] bg-no-repeat"
-                            style="background-color: #51a592;
+                            class="text-2xl inline-block w-full rounded-lg h-16  px-7 pb-2.5 pt-3 font-medium uppercase text-white font-black  bg-[#137A5E] bg-no-repeat"
+                            style="background-color: #137A5E;
                                     background-image:
-                                        radial-gradient(at -30% -30%, #02A859, transparent 80%),
-                                        radial-gradient(at 130% 150%, #02A859, transparent 80%);">
+                                        radial-gradient(at -30% -30%, #137A5E, transparent 80%),
+                                        radial-gradient(at 130% 150%, #137A5E, transparent 80%);">
                             MASUK
                         </button>
                     </form>

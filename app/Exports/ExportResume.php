@@ -1,251 +1,94 @@
 <?php
 
-
-
 namespace App\Exports;
 
-
-
-use App\Models\NilaiUnsur;
-use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithCustomStartCell;
-use Maatwebsite\Excel\Concerns\WithColumnFormatting;
-use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use App\Support\Skm;
+use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithCustomStartCell;
+use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use Illuminate\Support\Facades\DB;
 
-class ExportResume implements FromCollection, WithHeadings, WithCustomStartCell,  WithColumnFormatting, ShouldAutoSize, WithStyles
-
+/** Data responden + rekap NRR/IKM sesuai periode dan filter halaman admin. */
+class ExportResume implements FromArray, WithHeadings, WithCustomStartCell, ShouldAutoSize, WithStyles
 {
-    public function styles(Worksheet $sheet)
-    {
-        $sheet->getStyle('B2')->getFont()->setBold(true);
-        $sheet->getStyle('C2')->getFont()->setBold(true);
-        $sheet->getStyle('D2')->getFont()->setBold(true);
-        $sheet->getStyle('E2')->getFont()->setBold(true);
-        $sheet->getStyle('F2')->getFont()->setBold(true);
-        $sheet->getStyle('G2')->getFont()->setBold(true);
-        $sheet->getStyle('H2')->getFont()->setBold(true);
-        $sheet->getStyle('I2')->getFont()->setBold(true);
-        $sheet->getStyle('J2')->getFont()->setBold(true);
-        $sheet->getStyle('K2')->getFont()->setBold(true);
-        $sheet->getStyle('L2')->getFont()->setBold(true);
-        $sheet->getStyle('M2')->getFont()->setBold(true);
-        $sheet->getStyle('N2')->getFont()->setBold(true);
-        $sheet->getStyle('O2')->getFont()->setBold(true);
-        $sheet->getStyle('P2')->getFont()->setBold(true);
-        $sheet->getStyle('Q2')->getFont()->setBold(true);
-        $sheet->getStyle('R2')->getFont()->setBold(true);
-    }
+    private const IDENTITAS = [
+        'jenisPelayanan' => 'JENIS LAYANAN',
+        'tanggal_layanan' => 'TANGGAL MENERIMA LAYANAN',
+        'jenkel' => 'JENIS KELAMIN',
+        'usia' => 'USIA',
+        'pendidikan' => 'PENDIDIKAN',
+        'pekerjaan' => 'PEKERJAAN',
+        'disabilitas' => 'DISABILITAS',
+        'jenis_disabilitas' => 'JENIS DISABILITAS',
+    ];
 
-    public function columnFormats(): array
-    {
-        return [
-            // 'E' => NumberFormat::FORMAT_DATE_DDMMYYYY,
-        ];
-    }
-
-
-    /**
-
-    * @return \Illuminate\Support\Collection
-
-    */
-
-    public function collection()
-
-    {
-        error_reporting(0);
-
-        $startDate = '2024-01-01';
-        $endDate = '2024-10-03';
-
-        if($_GET['Bulan']==null){
-            $today = date('Y-m-d',strtotime("+1 days"));
-            $endDate=$today;
-        }else if($_GET['Bulan']==1){
-            $endDate = '2024-01-31';
-        }else if($_GET['Bulan']==2){
-            $endDate = '2024-02-30';
-        }else if($_GET['Bulan']==3){
-            $endDate = '2024-03-31';
-        }else if($_GET['Bulan']==4){
-            $endDate = '2024-04-30';
-        }else if($_GET['Bulan']==5){
-            $endDate = '2024-05-31';
-        }else if($_GET['Bulan']==6){
-            $endDate = '2024-06-30';
-        }else if($_GET['Bulan']==7){
-            $endDate = '2024-07-31';
-        }else if($_GET['Bulan']==8){
-            $endDate = '2024-08-30';
-        }else if($_GET['Bulan']==9){
-            $endDate = '2024-09-31';
-        }else if($_GET['Bulan']==10){
-            $endDate = '2024-10-30';
-        }else if($_GET['Bulan']==11){
-            $endDate = '2024-11-31';
-        }else if($_GET['Bulan']==12){
-            $endDate = '2024-12-30';
-        }
-
-        $tu1 = DB::table('2024')
-    ->whereBetween('created_at', [$startDate, $endDate])
-    ->get()
-    ->sum('u1');
-
-$tu2 = DB::table('2024')
-    ->whereBetween('created_at', [$startDate, $endDate])
-    ->get()
-    ->sum('u2');
-
-$tu3 = DB::table('2024')
-    ->whereBetween('created_at', [$startDate, $endDate])
-    ->get()
-    ->sum('u3');
-
-$tu4 = DB::table('2024')
-    ->whereBetween('created_at', [$startDate, $endDate])
-    ->get()
-    ->sum('u4');
-
-$tu5 = DB::table('2024')
-    ->whereBetween('created_at', [$startDate, $endDate])
-    ->get()
-    ->sum('u5');
-
-$tu6 = DB::table('2024')
-    ->whereBetween('created_at', [$startDate, $endDate])
-    ->get()
-    ->sum('u6');
-
-$tu7 = DB::table('2024')
-    ->whereBetween('created_at', [$startDate, $endDate])
-    ->get()
-    ->sum('u7');
-
-$tu8 = DB::table('2024')
-    ->whereBetween('created_at', [$startDate, $endDate])
-    ->get()
-    ->sum('u8');
-
-$tu9 = DB::table('2024')
-    ->whereBetween('created_at', [$startDate, $endDate])
-    ->get()
-    ->sum('u9');
-
-        $export = ['nik', 'nama','jenisPelayanan'];
-        $total = ['nik' => 'TOTAL'];
-
-        if($_GET['jenkel'] == 1 ){
-            array_push($export, "jenkel");
-        }
-         if($_GET['usia'] == 1 ){
-            array_push($export, "usia");
-        }
-         if($_GET['pekerjaan'] == 1 ){
-            array_push($export, "pekerjaan");
-        }
-         if($_GET['pendidikan'] == 1 ){
-            array_push($export, "pendidikan");
-        }
-
-        array_push($export, "u1");
-        array_push($export, "u2");
-        array_push($export, "u3");
-        array_push($export, "u4");
-        array_push($export, "u5");
-        array_push($export, "u6");
-        array_push($export, "u7");
-        array_push($export, "u8");
-        array_push($export, "u9");
-        array_push($export, "created_at");
-
-
-        $selects = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get($export);
-
-        if($_GET['Tahun']==2023 or $_GET['Tahun']==2025){
-            $selects = DB::table('2023')
-
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get(['nik','nama','pendidikan','created_at']);}
-
-
-        // dd($total);
-
-        // return dd($_GET['filter']);
-
-        return $selects;
-
-    }
-
-
-
-    /**
-
-     * Write code on Method
-
-     *
-
-     * @return response()
-
-     */
+    private int $jumlahBaris = 0;
 
     public function headings(): array
-
     {
-        $judul = ["NIK", "NAMA","JENIS PELAYANAN"];
-        if($_GET['jenkel'] == 1 ){
-            array_push($judul, "JENIS KELAMIN");
-        }
-         if($_GET['usia'] == 1 ){
-            array_push($judul, "USIA (TAHUN)");
-        }
-         if($_GET['pekerjaan'] == 1 ){
-            array_push($judul, "PEKERJAAN");
-        }
-         if($_GET['pendidikan'] == 1 ){
-            array_push($judul, "PENDIDIKAN");
+        $judul = array_merge(['NO', 'TANGGAL SURVEI'], array_values(self::IDENTITAS));
+        foreach (Skm::unsur() as $u) {
+            $judul[] = 'U' . $u['kode'];
         }
 
-            array_push($judul, "NILAI UNSUR");
-            array_push($judul, "");
-            array_push($judul, "");
-            array_push($judul, "");
-            array_push($judul, "");
-            array_push($judul, "");
-            array_push($judul, "");
-            array_push($judul, "");
-            array_push($judul, "");
-            array_push($judul, "TANGGAL SURVEY");
+        return array_merge($judul, ['NILAI SKM', 'SARAN']);
+    }
 
-        return $judul;
+    public function array(): array
+    {
+        $request = request();
+        $query = Skm::query($request);
+        $kolomUnsur = array_keys(Skm::unsur());
 
+        $baris = [];
+        foreach ((clone $query)->orderBy('created_at')->get() as $i => $data) {
+            $isi = [$i + 1, date('d-m-Y H:i', strtotime($data->created_at))];
+            foreach (array_keys(self::IDENTITAS) as $field) {
+                $isi[] = $data->$field ?? '';
+            }
+            foreach ($kolomUnsur as $k) {
+                $isi[] = $data->$k;
+            }
+            $nilai = Skm::nilaiResponden($data);
+            $isi[] = $nilai === null ? '' : round($nilai, 2);
+            $isi[] = $data->saran ?? '';
+            $baris[] = $isi;
+        }
+
+        $hasil = Skm::hitung($query);
+        $kosong = array_fill(0, count(self::IDENTITAS) + 1, '');
+        $rekap = [
+            'TOTAL NILAI UNSUR' => fn ($u) => $u['total'],
+            'NRR PER UNSUR' => fn ($u) => round($u['nrr'], 3),
+            'NRR TERTIMBANG' => fn ($u) => round($u['nrrt'], 3),
+        ];
+
+        $baris[] = [];
+        foreach ($rekap as $label => $nilai) {
+            $baris[] = array_merge([$label], $kosong, array_map($nilai, array_values($hasil['unsur'])));
+        }
+        $baris[] = array_merge(['NILAI SKM (NRR TERTIMBANG x 25)'], $kosong, [round($hasil['ikm'], 2)]);
+        $baris[] = array_merge(['MUTU / KINERJA'], $kosong, [$hasil['mutu'] . ' / ' . $hasil['kinerja']]);
+
+        $this->jumlahBaris = count($baris);
+
+        return $baris;
+    }
+
+    public function styles(Worksheet $sheet)
+    {
+        $sheet->getStyle('2')->getFont()->setBold(true);
+
+        $akhir = $this->jumlahBaris + 2;
+        for ($r = $akhir - 4; $r <= $akhir; $r++) {
+            $sheet->getStyle('B' . $r)->getFont()->setBold(true);
+        }
     }
 
     public function startCell(): string
     {
         return 'B2';
     }
-
-    	 public function registerEvents()
-    {
-
-		//border style
-		$styleArray = [
-				'borders' => [
-					'outline' => [
-						'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-					//'color' => ['argb' => 'FFFF0000'],
-						],
-					],
-				];
-            }
-
 }
-

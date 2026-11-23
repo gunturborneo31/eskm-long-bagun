@@ -10,7 +10,8 @@ export default {
         extend: {
             colors: {
                 hoverColor: '#fff',
-                primaryColor: '#009D60',
+                primaryColor: '#137A5E',
+                primaryDark: '#0E6048',
             },
             fontFamily: {
                 Lilita: ['Lilita One'],

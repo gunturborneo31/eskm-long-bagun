@@ -28,7 +28,8 @@
             theme: {
                 extend: {
                     colors: {
-                        primaryColor: '#da373d',
+                        primaryColor: '#137A5E',
+                        primaryDark: '#0E6048',
                     }
                 }
             }

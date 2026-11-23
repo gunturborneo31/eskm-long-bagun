@@ -6,52 +6,17 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Session;
 use App\Models\NilaiUnsur;
+use App\Support\Skm;
 
 
 class RekapTotalController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-               error_reporting(0);
-
-$startDate = '2024-01-01';
-
-$endDate = '2024-10-03';
-
-if ($_GET['tw'] == null) {
-    $today = date('Y-m-d', strtotime('+1 days'));
-    $endDate = $today;
-} elseif ($_GET['tw'] == 1) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-03-31';
-} elseif ($_GET['tw'] == 2) {
-    $startDate = $_GET['Tahun'] . '-04-01';
-    $endDate = $_GET['Tahun'] . '-06-31';
-} elseif ($_GET['tw'] == 3) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-06-31';
-} elseif ($_GET['tw'] == 4) {
-    $startDate = $_GET['Tahun'] . '-07-01';
-    $endDate = $_GET['Tahun'] . '-09-31';
-} elseif ($_GET['tw'] == 5) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-09-31';
-} elseif ($_GET['tw'] == 6) {
-    $startDate = $_GET['Tahun'] . '-10-01';
-    $endDate = $_GET['Tahun'] . '-12-31';
-} elseif ($_GET['tw'] == 7) {
-    $startDate = $_GET['Tahun'] . '-01-01';
-    $endDate = $_GET['Tahun'] . '-12-31';
-}   
-
-        $selects = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->paginate(10);
-
-        if($_GET['Tahun']==2023 or $_GET['Tahun']==2025){
-            $selects = DB::table('2023')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->paginate(10);}
+        $selects = Skm::query($request)
+            ->orderByDesc('created_at')
+            ->paginate(10)
+            ->appends($request->query());
 
         return view('RekapTotal.index', compact('selects'));
     }
@@ -145,18 +110,13 @@ if ($_GET['tw'] == null) {
      * @param  mixed $id
      * @return void
      */
-    public function destroy(String $id)
+    public function destroy(Request $request, String $id)
     {
-        $NilaiUnsur = NilaiUnsur::findOrFail($id);
-        $NilaiUnsur->delete();
+        // hapus dari tabel tahun yang sedang ditampilkan (2023 / 2024), bukan selalu tabel 2024
+        $hapus = DB::table(Skm::tabel(Skm::tahun($request)))->where('id', $id)->delete();
+        abort_if($hapus === 0, 404);
 
-        if ($NilaiUnsur) {
-            //redirect dengan pesan sukses
-            return redirect('/rekapTotal?jenkel=1&usia=1&pekerjaan=1&pendidikan=1');
-        } else {
-            //redirect dengan pesan erro
-            return redirect('/rekapTotal?jenkel=1&usia=1&pekerjaan=1&pendidikan=1');
-        }
+        return redirect()->back();
     }
 
     /**

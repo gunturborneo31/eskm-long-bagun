@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\NilaiUnsur;
+use App\Support\Skm;
 use DateTime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpWord\Element\Chart;
 use PhpOffice\PhpWord\Element\Table;
 use PhpOffice\PhpWord\TemplateProcessor;
+use PhpOffice\PhpWord\Settings;
 use PhpOffice\PhpWord\Shared\Converter;
 use PhpOffice\PhpWord\SimpleType\TblWidth;
 
@@ -137,960 +139,201 @@ class WordController extends Controller
         //
     }
 
-    public function export(Request $request){
-        // dd($_GET['tw'], $_GET['Tahun']);
-        $date = new DateTime();
-
-        // Extract day, month, and year
-        $hariIni = $date->format('d');
-        $bulanIni = $date->format('m');
-        $tahunIni = $date->format('Y');
-
-        // dd($hari, $bulan, $tahun);
-        //-----------------------------------------------------------------------------------------------------------------
-        if(date('m')<=3){
-            $tw=1;
-        } else if(date('m')<=6){
-            $tw=3;
-        } else if(date('m')<=9){
-            $tw=5;
-        } else if(date('m')<=12){
-            $tw=7;
+    public function export(Request $request)
+    {
+        if (! $request->has('tw')) {
+            return redirect('export?tw=' . Skm::twSekarang() . '&Tahun=' . date('Y'));
         }
 
-        if (array_key_exists("tw", $_GET)){
-            // echo "ada";
-        } else {
-            // echo "kosong";
+        // Tanpa ini PHPWord menulis teks mentah ke XML: label "< 17 tahun" atau saran berisi "&"
+        // membuat dokumen rusak dan tidak bisa dibuka Word.
+        Settings::setOutputEscapingEnabled(true);
 
-            return redirect("export/?tw=".$tw."&Tahun=".date('Y'));
+        $tahun = Skm::tahun($request);
+        $periode = Skm::keteranganPeriode(Skm::tw($request));
+        $query = Skm::query($request);
+        $hasil = Skm::hitung($query);
+        $unsur = array_values($hasil['unsur']);
+        $angka = fn ($nilai, $desimal = 3) => Skm::angka($nilai, $desimal);
+
+        $templateProcessor = new TemplateProcessor(public_path('word-template/export.docx'));
+
+        // --- profil responden
+        $rekap = [];
+        foreach (array_keys(Skm::profil()) as $field) {
+            $rekap[$field] = Skm::rekapProfil($query, $field);
         }
-
-        // $tahun = date("Y");
-        // dd($tahun);
-          // echo (""+Session::get('subbidang'));
-        $responden = [];
-        $singkatan = [];
-
-        $bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nop', 'Des'];
-
-        error_reporting(0);
-        if ($_GET['Bulan'] == '') {
-            for ($x = 0; $x <= date('m'); $x++) {
-                $responden[$x] = DB::table("2024")
-                    ->whereMonth('created_at', '=', $x + 1)
-                    ->get()
-                    ->count();
-                $singkatan[$x] = $bulan[$x];
-                $jml = date('m');
+        // kalimat rincian hanya menyebut pilihan yang ada respondennya (grafik tetap menampilkan semua)
+        $rincian = function (string $field) use ($rekap) {
+            $terisi = array_filter($rekap[$field], fn ($b) => $b['jumlah'] > 0);
+            $bagian = array_map(fn ($b) => $b['label'] . ' sebanyak ' . $b['jumlah'] . ' orang', array_values($terisi));
+            if (count($bagian) < 2) {
+                return $bagian[0] ?? '-';
             }
-        } else {
-            for ($x = 0; $x <= $_GET['Bulan']; $x++) {
-                $responden[$x] = DB::table("2024")
-                    ->whereMonth('created_at', '=', $x + 1)
-                    ->get()
-                    ->count();
-                $singkatan[$x] = $bulan[$x];
-                $jml = $_GET['Bulan'];
-            }
-        }
-        // dd($responden);
+            $akhir = array_pop($bagian);
 
-            $responden = json_encode($responden);
-            $singkatan = json_encode($singkatan);
+            return implode(', ', $bagian) . ' dan ' . $akhir;
+        };
+        $jumlah = fn (string $field, string $label) => collect($rekap[$field])->firstWhere('label', $label)['jumlah'] ?? 0;
 
-        $i = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-        // dd ($jml);
-
-        error_reporting(0);
-
-        $startDate = '2024-01-01';
-
-        $endDate = '2024-10-03';
-
-        if ($_GET['tw'] == null) {
-            $today = date('Y-m-d', strtotime('+1 days'));
-            $endDate = $today;
-        } elseif ($_GET['tw'] == 1) {
-            $startDate = $_GET['Tahun'] . '-01-01';
-            $endDate = $_GET['Tahun'] . '-03-31';
-        } elseif ($_GET['tw'] == 2) {
-            $startDate = $_GET['Tahun'] . '-04-01';
-            $endDate = $_GET['Tahun'] . '-06-31';
-        } elseif ($_GET['tw'] == 3) {
-            $startDate = $_GET['Tahun'] . '-01-01';
-            $endDate = $_GET['Tahun'] . '-06-31';
-        } elseif ($_GET['tw'] == 4) {
-            $startDate = $_GET['Tahun'] . '-07-01';
-            $endDate = $_GET['Tahun'] . '-09-31';
-        } elseif ($_GET['tw'] == 5) {
-            $startDate = $_GET['Tahun'] . '-01-01';
-            $endDate = $_GET['Tahun'] . '-09-31';
-        } elseif ($_GET['tw'] == 6) {
-            $startDate = $_GET['Tahun'] . '-10-01';
-            $endDate = $_GET['Tahun'] . '-12-31';
-        } elseif ($_GET['tw'] == 7) {
-            $startDate = $_GET['Tahun'] . '-01-01';
-            $endDate = $_GET['Tahun'] . '-12-31';
+        $disabilitasYa = $jumlah('disabilitas', 'Ya');
+        $rincianDisabilitas = $disabilitasYa . ' orang';
+        if ($disabilitasYa > 0) {
+            $jenis = collect($rekap['jenis_disabilitas'])->where('jumlah', '>', 0)
+                ->map(fn ($b) => $b['label'] . ' ' . $b['jumlah'] . ' orang')->implode(', ');
+            $rincianDisabilitas .= $jenis ? ' (' . $jenis . ')' : '';
         }
 
-        $indexTu = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9'];
-        $lastDate = ['2024-01-31', '2024-02-31', '2024-03-31', '2024-04-31', '2024-05-31', '2024-06-31', '2024-07-31', '2024-08-31', '2024-09-31', '2024-10-31', '2024-11-31', '2024-12-31'];
-        // dd($indexTu);
+        // --- unsur terendah / tertinggi (hanya unsur yang ada jawabannya)
+        $terisi = collect($unsur)->where('responden', '>', 0)->sortBy('nrr')->values();
+        $terendah = $terisi->first();
+        $tertinggi = $terisi->last();
+        $rendah = $terisi->take(4)->pluck('unsur')->pad(4, '-')->all();
 
-        $tu = [[]];
-        $x = [];
-        $nn = [];
-        $nrr = [[]];
-        $nrrT = [[]];
-        $nrrTT = [];
-        $nilaiSkm = [];
-
-        array_push($nn, '');
-
-        for ($i = 1; $i <= 12; $i++) {
-            $abc = $lastDate[$i - 1];
-            for ($j = 1; $j <= 9; $j++) {
-                $xyz = $indexTu[$j - 1];
-                // echo $xyz;
-                $nilaiTu = DB::table('2024')
-                    ->whereBetween('created_at', [$startDate, $abc])
-                    ->get()
-                    ->sum($xyz);
-                array_push($x, $nilaiTu);
-            }
-
-            $nnn = DB::table('2024')
-                ->whereBetween('created_at', [$startDate, $abc])
-                ->get()
-                ->count();
-
-            array_push($tu, $x);
-            array_push($nn, $nnn);
-            $x = [];
+        // --- bobot yang benar-benar dipakai: 1/12, atau 1/jumlah pertanyaan terisi bila ada yang kosong
+        $terisiUrut = collect($unsur)->where('responden', '>', 0)->values();
+        $jumlahTerisi = max($terisiUrut->count(), 1);
+        $bobotTeks = $angka($hasil['bobot']) . ' (1/' . $jumlahTerisi . ')';
+        $kosong = collect($unsur)->where('responden', 0)->pluck('kode');
+        if ($hasil['n'] > 0 && $kosong->isNotEmpty()) {
+            $bobotTeks .= '; pertanyaan ' . $kosong->implode(', ') . ' belum memiliki jawaban pada periode ini'
+                . ' (data sebelum kuesioner 12 pertanyaan), sehingga bobot dibagi rata ke '
+                . $jumlahTerisi . ' pertanyaan yang terisi';
         }
 
-        for ($i = 1; $i <= 12; $i++) {
-            $x;
-            for ($j = 1; $j <= 9; $j++) {
-                if ($nn[$i] == 0) {
-                    array_push($x, 0);
-                } else {
-                    $nrrx = $tu[$i][$j - 1] / $nn[$i];
-                    array_push($x, round($nrrx, 2));
-                }
-            }
-            // print_r($x);
-            // echo '<br>';
-            array_push($nrr, $x);
-            $x = [];
+        $nilai = [
+            'bulanAwal' => $periode['bulanAwal'],
+            'bulanAkhir' => $periode['bulanAkhir'],
+            'semester' => $periode['semester'],
+            'tahun' => $tahun,
+            'hariIni' => date('d'),
+            'bulanIni' => Skm::NAMA_BULAN[(int) date('n')],
+            'tahunIni' => date('Y'),
+            'jmlResponden' => $hasil['n'],
+            'jenkel_l' => $jumlah('jenkel', 'Laki-laki'),
+            'jenkel_p' => $jumlah('jenkel', 'Perempuan'),
+            'rincianUsia' => $rincian('usia'),
+            'rincianPendidikan' => $rincian('pendidikan'),
+            'rincianPekerjaan' => $rincian('pekerjaan'),
+            'rincianLayanan' => $rincian('jenisPelayanan'),
+            'rincianDisabilitas' => $rincianDisabilitas,
+            'terbanyakUsia' => Skm::terbanyak($rekap['usia']),
+            'terbanyakPendidikan' => Skm::terbanyak($rekap['pendidikan']),
+            'terbanyakPekerjaan' => Skm::terbanyak($rekap['pekerjaan']),
+            'nilaiSkm' => $angka($hasil['ikm'], 2),
+            'nrrT' => $angka($hasil['nrrT']),
+            'mutu' => $hasil['mutu'],
+            'kinerja' => $hasil['kinerja'],
+            'bobot' => $angka($hasil['bobot']),
+            'bobotTeks' => $bobotTeks,
+            // pertanyaan yang belum ada jawabannya tidak ikut dihitung (bobotnya dibagi ke yang terisi)
+            'rumusNrr' => $terisiUrut->map(fn ($u) => '(' . $angka($u['nrr']) . ' x ' . $angka($hasil['bobot']) . ')')->implode(' + '),
+            'rumusNrrt' => $terisiUrut->map(fn ($u) => $angka($u['nrrt']))->implode(' + '),
+            'unsurTerendah' => $terendah['unsur'] ?? '-',
+            'nilaiTerendah' => $terendah ? $angka($terendah['nrr']) : '-',
+            'unsurTertinggi' => $tertinggi['unsur'] ?? '-',
+            'nilaiTertinggi' => $tertinggi ? $angka($tertinggi['nrr']) : '-',
+        ];
+        foreach ($rendah as $i => $nama) {
+            $nilai['rendah' . ($i + 1)] = $nama;
+        }
+        foreach ($nilai as $kunci => $isi) {
+            $templateProcessor->setValue($kunci, $isi);
         }
 
-        $y=0;
+        // --- Tabel 5 (kategori unsur) dan Tabel 6 (NRR dan NRR tertimbang)
+        $templateProcessor->cloneRowAndSetValues('t5_no', array_map(fn ($u) => [
+            't5_no' => $u['kode'],
+            't5_unsur' => $u['unsur'],
+            't5_nrr' => $angka($u['nrr']),
+            't5_mutu' => $u['mutu'],
+        ], $unsur));
+        $templateProcessor->cloneRowAndSetValues('t6_no', array_map(fn ($u) => [
+            't6_no' => $u['kode'],
+            't6_unsur' => $u['unsur'],
+            't6_nrr' => $angka($u['nrr']),
+            't6_nrrt' => $angka($u['nrrt']),
+        ], $unsur));
 
-        array_push($nrrTT, '');
-        for ($i = 1; $i <= 12; $i++) {
-            $x;
-            $y;
-            for ($j = 1; $j <= 9; $j++) {
-                $nrrTx = $nrr[$i][$j - 1] * 0.111;
-                array_push($x, round($nrrTx, 2));
-                $y = $y + $nrrTx;
-            }
-            array_push($nrrT, $x);
-            array_push($nrrTT, round($y, 2));
-            $x = [];
-            $y = 0;
+        // --- grafik profil responden
+        $grafik = [
+            'chartJenkel' => 'jenkel',
+            'chartUmur' => 'usia',
+            'chartPendidikan' => 'pendidikan',
+            'chartPekerjaan' => 'pekerjaan',
+        ];
+        foreach ($grafik as $penanda => $field) {
+            $chart = new Chart('column', array_column($rekap[$field], 'label'), array_column($rekap[$field], 'jumlah'));
+            $chart->getStyle()->setWidth(Converter::inchToEmu(6))->setHeight(Converter::inchToEmu(2.5));
+            $templateProcessor->setChart($penanda, $chart);
         }
 
-        for ($i = 0; $i <= 11; $i++) {
-            if ($_GET['Tahun'] == '2023' or $_GET['Tahun'] == '2025') {
-                array_push($nilaiSkm, 0);
-            } else {
-                array_push($nilaiSkm, $nrrTT[$i + 1] * 25);
-            }
-        }
-
-        // dd($nilaiSkm);
-
-        $tu1 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u1');
-
-        $tu2 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u2');
-
-        $tu3 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u3');
-
-        $tu4 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u4');
-
-        $tu5 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u5');
-
-        $tu6 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u6');
-
-        $tu7 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u7');
-
-        $tu8 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u8');
-
-        $tu9 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u9');
-
-        $n = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->count();
-
-        $tu9 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u9');
-
-        // unset($nilaiSkm[0]);
-
-        $nilaiSkm = json_encode($nilaiSkm);
-
-        // dd($responden);
-        // dd($nilaiSkm);
-
-        if ($n == 0) {
-            $nrr1 = 0;
-            $nrr2 = 0;
-            $nrr3 = 0;
-            $nrr4 = 0;
-            $nrr5 = 0;
-            $nrr6 = 0;
-            $nrr7 = 0;
-            $nrr8 = 0;
-            $nrr9 = 0;
-
-            $nrr = 0;
-            $nrr = 0;
-
-            $nrrt1 = 0;
-            $nrrt2 = 0;
-            $nrrt3 = 0;
-            $nrrt4 = 0;
-            $nrrt5 = 0;
-            $nrrt6 = 0;
-            $nrrt7 = 0;
-            $nrrt8 = 0;
-            $nrrt9 = 0;
-
-            $nrrT = 0;
-            $nrrT = 0;
-
-            $nilaiSKM = $nrrT * 25;
-        } else {
-            $nrr1 = sprintf('%0.3f', $tu1 / $n);
-            $nrr2 = sprintf('%0.3f', $tu2 / $n);
-            $nrr3 = sprintf('%0.3f', $tu3 / $n);
-            $nrr4 = sprintf('%0.3f', $tu4 / $n);
-            $nrr5 = sprintf('%0.3f', $tu5 / $n);
-            $nrr6 = sprintf('%0.3f', $tu6 / $n);
-            $nrr7 = sprintf('%0.3f', $tu7 / $n);
-            $nrr8 = sprintf('%0.3f', $tu8 / $n);
-            $nrr9 = sprintf('%0.3f', $tu9 / $n);
-
-            $nrr = $nrr1 + $nrr2 + $nrr3 + $nrr4 + $nrr5 + $nrr6 + $nrr7 + $nrr8 + $nrr9;
-            $nrr = sprintf('%0.3f', $nrr);
-
-            $nrrt1 = sprintf('%0.3f', $nrr1 * 0.111);
-            $nrrt2 = sprintf('%0.3f', $nrr2 * 0.111);
-            $nrrt3 = sprintf('%0.3f', $nrr3 * 0.111);
-            $nrrt4 = sprintf('%0.3f', $nrr4 * 0.111);
-            $nrrt5 = sprintf('%0.3f', $nrr5 * 0.111);
-            $nrrt6 = sprintf('%0.3f', $nrr6 * 0.111);
-            $nrrt7 = sprintf('%0.3f', $nrr7 * 0.111);
-            $nrrt8 = sprintf('%0.3f', $nrr8 * 0.111);
-            $nrrt9 = sprintf('%0.3f', $nrr9 * 0.111);
-
-            $nrrT = $nrrt1 + $nrrt2 + $nrrt3 + $nrrt4 + $nrrt5 + $nrrt6 + $nrrt7 + $nrrt8 + $nrrt9;
-            $nrrT = sprintf('%0.3f', $nrrT);
-
-            $nilaiSKM = $nrrT * 25;
-
-            // $responden = [];
-            // $bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nop', 'Des'];
-
-            // if ($_GET['tw'] == '') {
-            //     for ($x = 0; $x <= date('m'); $x++) {
-            //         $responden[$x][0] = DB::table('2024')
-            //             ->whereMonth('created_at', '=', $x + 1)
-            //             ->get()
-            //             ->count();
-            //         $responden[$x][1] = $bulan[$x];
-            //     }
-            // } else {
-            //     for ($x = 0; $x <= $_GET['tw']; $x++) {
-            //         $responden[$x][0] = DB::table('2024')
-            //             ->whereMonth('created_at', '=', $x + 1)
-            //             ->get()
-            //             ->count();
-            //         $responden[$x][1] = $bulan[$x];
-            //     }
-            // }
-            // dd($responden);
-
-            if ($_GET['Tahun'] == '2023' or $_GET['Tahun'] == '2025' or $_GET['Tahun'] == '2025') {
-                $tu = [[]];
-                $x = [];
-                $nn = [];
-                $nrr = [[]];
-                $nrrT = [[]];
-                $nrrTT = [];
-                // $nilaiSkm = [];
-            }
-        }
-        // echo $nrrTotal;
-        // echo $nrrTertimbang;
-        $jmlResponden = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->count();
-
-            $jenkel_l = DB::table('2024')
-    ->where('jenkel', '=', 'Laki - Laki')
-    ->whereBetween('created_at', [$startDate, $endDate])
-    ->get()
-    ->count();
-
-    $jenkel_p = DB::table('2024')
-        ->where('jenkel', '=', 'Perempuan')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $umur_1 = DB::table('2024')
-        ->whereBetween('usia', [0, 29])
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $umur_2 = DB::table('2024')
-        ->whereBetween('usia', [30, 40])
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $umur_3 = DB::table('2024')
-        ->whereBetween('usia', [41, 50])
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $umur_4 = DB::table('2024')
-        ->whereBetween('usia', [51, 100])
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pendidikan_1 = DB::table('2024')
-        ->where('pendidikan', '=', 'SD')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pendidikan_2 = DB::table('2024')
-        ->where('pendidikan', '=', 'SMP')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pendidikan_3 = DB::table('2024')
-        ->where('pendidikan', '=', 'SMA / SMK')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pendidikan_4 = DB::table('2024')
-        ->where('pendidikan', '=', 'D-I / D-III')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pendidikan_5 = DB::table('2024')
-        ->where('pendidikan', '=', 'S1 / Setara')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pendidikan_6 = DB::table('2024')
-        ->where('pendidikan', '=', 'S2 / S3')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pekerjaan_1 = DB::table('2024')
-        ->where('pekerjaan', '=', 'ASN')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pekerjaan_2 = DB::table('2024')
-        ->where('pekerjaan', '=', 'TNI / POLRI')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pekerjaan_3 = DB::table('2024')
-        ->where('pekerjaan', '=', 'Swasta')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pekerjaan_4 = DB::table('2024')
-        ->where('pekerjaan', '=', 'Pengusaha')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pekerjaan_5 = DB::table('2024')
-        ->where('pekerjaan', '=', 'Pelajar')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-    $pekerjaan_6 = DB::table('2024')
-        ->where('pekerjaan', '=', 'Lainnya')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->get()
-        ->count();
-
-        //-----------------------------------------------------------------------------------------------------------------
-
-        $document_with_table = new \PhpOffice\PhpWord\PhpWord();
-        $section = $document_with_table->addSection();
-        $table = $section->addTable();
-        for ($r = 1; $r <= 8; $r++) {
-            $table->addRow();
-            for ($c = 1; $c <= 5; $c++) {
-                $table->addCell(1750)->addText("Row {$r}, Cell {$c}");
-            }
-        }
-
-        // Create writer to convert document to xml
-        $objWriter = \PhpOffice\PhpWord\IOFactory::createWriter($document_with_table, 'Word2007');
-
-        // Get all document xml code
-        $fullxml = $objWriter->getWriterPart('Document')->write();
-
-        // Get only table xml code
-        $tablexml = preg_replace('/^[\s\S]*(<w:tbl\b.*<\/w:tbl>).*/', '$1', $fullxml);
-
-        //Open template with ${table}
-        $templateProcessor = new TemplateProcessor('word-template/export.docx');
-
-        $tahun = $_GET['Tahun'];
-        $tw = $_GET['tw'];
-
-        if($tw==1){
-            $bulanAwal = "Januari";
-            $bulanAkhir = "Maret";
-            $semester = "1";
-        } else if($tw==2){
-            $bulanAwal = "Aprli";
-            $bulanAkhir = "Juni";
-            $semester = "1";
-        } else if($tw==3){
-            $bulanAwal = "Januari";
-            $bulanAkhir = "Juni";
-            $semester = "1";
-        } else if($tw==4){
-            $bulanAwal = "Juli";
-            $bulanAkhir = "September";
-            $semester = "2";
-        } else if($tw==5){
-            $bulanAwal = "Januari";
-            $bulanAkhir = "September";
-            $semester = "2";
-        } else if($tw==6){
-            $bulanAwal = "Oktober";
-            $bulanAkhir = "Desember";
-            $semester = "2";
-        } else if($tw==7){
-            $bulanAwal = "Januari";
-            $bulanAkhir = "Desember";
-            $semester = "2";
-        }
-
-        if ($nilaiSKM >= 0 and $nilaiSKM <= 24.99) {
-            $mutu = 'E';
-        } elseif ($nilaiSKM >= 25.0 and $nilaiSKM <= 64.99) {
-            $mutu = 'D';
-        } elseif ($nilaiSKM >= 65.0 and $nilaiSKM <= 76.6) {
-            $mutu = 'C';
-        } elseif ($nilaiSKM >= 76.61 and $nilaiSKM <= 88.3) {
-            $mutu = 'B';
-        } elseif ($nilaiSKM >= 88.4) {
-            $mutu = 'A';
-        } else {
-            $mutu = 'E';
-        }
-
-        if ($nilaiSKM >= 0 and $nilaiSKM <= 24.99) {
-            $kinerja = 'SANGAT TIDAK MEMUASKAN';
-        } elseif ($nilaiSKM >= 25.0 and $nilaiSKM <= 64.99) {
-            $kinerja = 'TIDAK MEMUASKAN';
-        } elseif ($nilaiSKM >= 65.0 and $nilaiSKM <= 76.6) {
-            $kinerja = 'KURANG MEMUASKAN';
-        } elseif ($nilaiSKM >= 76.61 and $nilaiSKM <= 88.3) {
-            $kinerja = 'MEMUASKAN';
-        } elseif ($nilaiSKM >= 88.4) {
-            $kinerja = 'SANGAT MEMUASKAN';
-        } else {
-            $kinerja = 'SANGAT TIDAK MEMUASKAN';
-        }
-
-        $terbanyakUsia = "";
-        $terbanyakPendidikan = "";
-        $terbanyakPekerjaan = "";
-
-        $max = 0;
-        if($umur_1 >= $max){
-            $max = $umur_1;
-            $terbanyakUsia = "Kurang dari 30 Tahun";
-        }
-
-        if($umur_2 >= $max){
-            $max = $umur_2;
-            $terbanyakUsia = "30 s/d 40 Tahun";
-        }
-
-        if($umur_3 >= $max){
-            $max = $umur_3;
-            $terbanyakUsia = "41 s/d 50 Tahun";
-        }
-
-        if($umur_4 >= $max){
-            $max = $umur_4;
-            $terbanyakUsia = "Lebih dari 50 Tahun";
-        }
-
-        $max = 0;
-        if($pendidikan_1 >= $max){
-            $max = $pendidikan_1;
-            $terbanyakPendidikan = "SD";
-        }
-
-        if($pendidikan_2 >= $max){
-            $max = $pendidikan_2;
-            $terbanyakPendidikan = "SMP";
-        }
-
-        if($pendidikan_3 >= $max){
-            $max = $pendidikan_3;
-            $terbanyakPendidikan = "SMA/SMK";
-        }
-
-        if($pendidikan_4 >= $max){
-            $max = $pendidikan_4;
-            $terbanyakPendidikan = "DI/DIII";
-        }
-
-        if($pendidikan_5 >= $max){
-            $max = $pendidikan_5;
-            $terbanyakPendidikan = "SI/SETARA";
-        }
-
-        if($pendidikan_6 >= $max){
-            $max = $pendidikan_6;
-            $terbanyakPendidikan = "S2/S3";
-        }
-
-        $max = 0;
-        if($pekerjaan_1 >= $max){
-            $max = $pekerjaan_1;
-            $terbanyakPekerjaan = "ASN";
-        }
-
-        if($pekerjaan_2 >= $max){
-            $max = $pekerjaan_2;
-            $terbanyakPekerjaan = "TNI/POLRI";
-        }
-
-        if($pekerjaan_3 >= $max){
-            $max = $pekerjaan_3;
-            $terbanyakPekerjaan = "Swasta";
-        }
-
-        if($pekerjaan_4 >= $max){
-            $max = $pekerjaan_4;
-            $terbanyakPekerjaan = "Pengusaha";
-        }
-
-        if($pekerjaan_5 >= $max){
-            $max = $pekerjaan_5;
-            $terbanyakPekerjaan = "Pelajar";
-        }
-
-        if($pekerjaan_6 >= $max){
-            $max = $pekerjaan_6;
-            $terbanyakPekerjaan = "Lainnya";
-        }
-        // dd($tahun);
-        // Replace mark by xml code of table
-        $templateProcessor->setValue('bulanAwal', $bulanAwal);
-        $templateProcessor->setValue('bulanAkhir', $bulanAkhir);
-        $templateProcessor->setValue('semester', $semester);
-        $templateProcessor->setValue('tahun', $tahun);
-        $templateProcessor->setValue('jmlResponden', $jmlResponden);
-        $templateProcessor->setValue('jenkel_p', $jenkel_p);
-        $templateProcessor->setValue('jenkel_l', $jenkel_l);
-        $templateProcessor->setValue('umur_1', $umur_1);
-        $templateProcessor->setValue('umur_2', $umur_2);
-        $templateProcessor->setValue('umur_3', $umur_3);
-        $templateProcessor->setValue('umur_4', $umur_4);
-        $templateProcessor->setValue('pendidikan_1', $pendidikan_1);
-        $templateProcessor->setValue('pendidikan_2', $pendidikan_2);
-        $templateProcessor->setValue('pendidikan_3', $pendidikan_3);
-        $templateProcessor->setValue('pendidikan_4', $pendidikan_4);
-        $templateProcessor->setValue('pendidikan_5', $pendidikan_5);
-        $templateProcessor->setValue('pendidikan_6', $pendidikan_6);
-        $templateProcessor->setValue('pekerjaan_1', $pekerjaan_1);
-        $templateProcessor->setValue('pekerjaan_2', $pekerjaan_2);
-        $templateProcessor->setValue('pekerjaan_3', $pekerjaan_3);
-        $templateProcessor->setValue('pekerjaan_4', $pekerjaan_4);
-        $templateProcessor->setValue('pekerjaan_5', $pekerjaan_5);
-        $templateProcessor->setValue('pekerjaan_6', $pekerjaan_6);
-        $templateProcessor->setValue('nilaiSkm', sprintf('%0.2f', $nilaiSKM));
-        $templateProcessor->setValue('$nrrT', $nrrT);
-        $templateProcessor->setValue('mutu', $mutu);
-        $templateProcessor->setValue('kinerja', $kinerja);
-        $templateProcessor->setValue('hariIni', $hariIni);
-        $templateProcessor->setValue('bulanIni', $bulanIni);
-        $templateProcessor->setValue('tahunIni', $tahunIni);
-        $templateProcessor->setValue( 'terbanyakUsia', $terbanyakUsia);
-        $templateProcessor->setValue('terbanyakPendidikan', $terbanyakPendidikan);
-        $templateProcessor->setValue('terbanyakPekerjaan', $terbanyakPekerjaan);
-        // $templateProcessor->setValue('jmlResponden', $jmlResponden);
-
-        $style = array('width' => Converter::cmToEmu(5), 'height' => Converter::cmToEmu(4), '3d' => true);
-
-        $categories = array('Laki - Laki', 'Perempuan');
-        $series1 = array($jenkel_l, $jenkel_p);
-        $chartJenkel = new Chart('column', $categories, $series1);
-        $chartJenkel->getStyle()->setWidth(Converter::inchToEmu(4))->setHeight(Converter::inchToEmu(2));
-        $templateProcessor->setChart('chartJenkel', $chartJenkel);
-
-        $chartStyle2 = array(
-            'width' => "800"
-        );
-
-        $categories = array('Kurang dari 30 Tahun', '30 s/d 40 Tahun', '41 s/d 50 Tahun', 'Lebih dari 50 Tahun');
-        $series1 = array($umur_1, $umur_2, $umur_3, $umur_4);
-        $chartUmur = new Chart('column', $categories, $series1, $chartStyle2);
-        $chartUmur->getStyle()->setWidth(Converter::inchToEmu(4))->setHeight(Converter::inchToEmu(2));
-        $templateProcessor->setChart('chartUmur', $chartUmur);
-
-        $chartStyle3 = array(
-            'width' => 800,
-            'height'  => 300,
-            'tittle' => "Gambar 3 Tingkat Pendidikan Responden"
-        );
-
-
-        $categories = array('SD', 'SMP', 'SMA/SMK', 'DI/DIII', 'S1/SETARA', 'S2/S3');
-        $series1 = array($pendidikan_1, $pendidikan_2, $pendidikan_3, $pendidikan_4, $pendidikan_5, $pendidikan_6);
-        $chartPendidikan = new Chart('column', $categories, $series1, $chartStyle3);
-        $chartPendidikan->getStyle()->setWidth(Converter::inchToEmu(4))->setHeight(Converter::inchToEmu(2));
-        $templateProcessor->setChart('chartPendidikan', $chartPendidikan);
-
-        $chartStyle4 = array(
-            'width' => 800,
-            'height'  => 300,
-            'tittle' => "Gambar 4 Jenis Pekerjaan Responden"
-        );
-
-        $categories = array('ASN', 'TNI/POLRI', 'Swasta', 'Pengusaha', 'Pelajar', 'Lainnya');
-        $series1 = array($pekerjaan_1, $pekerjaan_2, $pekerjaan_3, $pekerjaan_4, $pekerjaan_5, $pekerjaan_6);
-        $chartPekerjaan = new Chart('column', $categories, $series1, $chartStyle4);
-        $chartPekerjaan->getStyle()->setWidth(Converter::inchToEmu(4))->setHeight(Converter::inchToEmu(2));
-        $templateProcessor->setChart('chartPekerjaan', $chartPekerjaan);
-
-        $nilaiUnsur = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])->get();
-
-        // dd($nilaiUnsur);
+        // --- Tabel 3: nilai per responden
+        $responden = (clone $query)->orderBy('created_at')->get();
+        $kolomUnsur = array_keys(Skm::unsur());
 
         $table = new Table(array('unit' => TblWidth::TWIP));
-        // foreach ($details as $detail) {
         $table->addRow();
-        $table->addCell(1500)->addText("No.");
-        $table->addCell(800)->addText("U1");
-        $table->addCell(800)->addText("U2");
-        $table->addCell(800)->addText("U3");
-        $table->addCell(800)->addText("U4");
-        $table->addCell(800)->addText("U5");
-        $table->addCell(800)->addText("U6");
-        $table->addCell(800)->addText("U7");
-        $table->addCell(800)->addText("U8");
-        $table->addCell(800)->addText("U9");
-        $table->addCell(800)->addText("HASIL");
+        $table->addCell(900)->addText('No.');
+        foreach (Skm::unsur() as $u) {
+            $table->addCell(560)->addText('U' . $u['kode']);
+        }
+        $table->addCell(900)->addText('SKM');
 
-        foreach($nilaiUnsur as $k=>$item){
+        foreach ($responden as $k => $item) {
             $table->addRow();
-            $table->addCell(1500)->addText( $k++);
-            $table->addCell(800)->addText( $item->u1);
-            $table->addCell(800)->addText( $item->u2);
-            $table->addCell(800)->addText( $item->u3);
-            $table->addCell(800)->addText( $item->u4);
-            $table->addCell(800)->addText( $item->u5);
-            $table->addCell(800)->addText( $item->u6);
-            $table->addCell(800)->addText( $item->u7);
-            $table->addCell(800)->addText( $item->u8);
-            $table->addCell(800)->addText( $item->u9);
-            $table->addCell(800)->addText( '');
+            $table->addCell(900)->addText($k + 1);
+            foreach ($kolomUnsur as $kolom) {
+                $table->addCell(560)->addText($item->$kolom ?? '-');
+            }
+            $skor = Skm::nilaiResponden($item);
+            $table->addCell(900)->addText($skor === null ? '-' : $angka($skor, 2));
         }
 
-        $tu1 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u1');
-
-        $tu2 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u2');
-
-        $tu3 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u3');
-
-        $tu4 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u4');
-
-        $tu5 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u5');
-
-        $tu6 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u6');
-
-        $tu7 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u7');
-
-        $tu8 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u8');
-
-        $tu9 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u9');
-
-        $n = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->count();
-
-        $tu9 = DB::table('2024')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->get()
-            ->sum('u9');
-
-        if ($n == 0) {
-            $nrr1 = 0;
-            $nrr2 = 0;
-            $nrr3 = 0;
-            $nrr4 = 0;
-            $nrr5 = 0;
-            $nrr6 = 0;
-            $nrr7 = 0;
-            $nrr8 = 0;
-            $nrr9 = 0;
-
-            $nrr = 0;
-            $nrr = 0;
-
-            $nrrt1 = 0;
-            $nrrt2 = 0;
-            $nrrt3 = 0;
-            $nrrt4 = 0;
-            $nrrt5 = 0;
-            $nrrt6 = 0;
-            $nrrt7 = 0;
-            $nrrt8 = 0;
-            $nrrt9 = 0;
-
-            $nrrT = 0;
-            $nrrT = 0;
-
-            $nilaiSKM = $nrrT * 25;
-        } else {
-            $nrr1 = sprintf('%0.3f', $tu1 / $n);
-            $nrr2 = sprintf('%0.3f', $tu2 / $n);
-            $nrr3 = sprintf('%0.3f', $tu3 / $n);
-            $nrr4 = sprintf('%0.3f', $tu4 / $n);
-            $nrr5 = sprintf('%0.3f', $tu5 / $n);
-            $nrr6 = sprintf('%0.3f', $tu6 / $n);
-            $nrr7 = sprintf('%0.3f', $tu7 / $n);
-            $nrr8 = sprintf('%0.3f', $tu8 / $n);
-            $nrr9 = sprintf('%0.3f', $tu9 / $n);
-
-            $nrr = $nrr1 + $nrr2 + $nrr3 + $nrr4 + $nrr5 + $nrr6 + $nrr7 + $nrr8 + $nrr9;
-            $nrr = sprintf('%0.3f', $nrr);
-
-            $nrrt1 = sprintf('%0.3f', $nrr1 * 0.111);
-            $nrrt2 = sprintf('%0.3f', $nrr2 * 0.111);
-            $nrrt3 = sprintf('%0.3f', $nrr3 * 0.111);
-            $nrrt4 = sprintf('%0.3f', $nrr4 * 0.111);
-            $nrrt5 = sprintf('%0.3f', $nrr5 * 0.111);
-            $nrrt6 = sprintf('%0.3f', $nrr6 * 0.111);
-            $nrrt7 = sprintf('%0.3f', $nrr7 * 0.111);
-            $nrrt8 = sprintf('%0.3f', $nrr8 * 0.111);
-            $nrrt9 = sprintf('%0.3f', $nrr9 * 0.111);
-
-            $nrrT = $nrrt1 + $nrrt2 + $nrrt3 + $nrrt4 + $nrrt5 + $nrrt6 + $nrrt7 + $nrrt8 + $nrrt9;
-            $nrrT = sprintf('%0.3f', $nrrT);
-
-            $nilaiSKM = $nrrT * 25;
-            $nilaiSKM = sprintf('%0.3f', $nilaiSKM);
+        $ringkasan = [
+            'Total Nilai Unsur' => [fn ($u) => $u['total'], $hasil['totalNilai']],
+            'NRR Per Unsur' => [fn ($u) => $angka($u['nrr']), $angka($hasil['nrr'])],
+            'NRR Tertimbang' => [fn ($u) => $angka($u['nrrt']), $angka($hasil['nrrT'])],
+        ];
+        foreach ($ringkasan as $label => [$isi, $jumlahBaris]) {
+            $table->addRow();
+            $table->addCell(900)->addText($label);
+            foreach ($unsur as $u) {
+                $table->addCell(560)->addText($isi($u));
+            }
+            $table->addCell(900)->addText($jumlahBaris);
         }
-
         $table->addRow();
-        $table->addCell(1500)->addText( 'Total Nilai Unsur');
-        $table->addCell(800)->addText( $tu1);
-        $table->addCell(800)->addText( $tu2);
-        $table->addCell(800)->addText( $tu3);
-        $table->addCell(800)->addText( $tu4);
-        $table->addCell(800)->addText( $tu5);
-        $table->addCell(800)->addText( $tu6);
-        $table->addCell(800)->addText( $tu7);
-        $table->addCell(800)->addText( $tu8);
-        $table->addCell(800)->addText( $tu9);
-        $table->addCell(800)->addText( '');
-
-        $table->addRow();
-        $table->addCell(1500)->addText( 'NRR Per Unsur');
-        $table->addCell(800)->addText( $nrr1);
-        $table->addCell(800)->addText( $nrr2);
-        $table->addCell(800)->addText( $nrr3);
-        $table->addCell(800)->addText( $nrr4);
-        $table->addCell(800)->addText( $nrr5);
-        $table->addCell(800)->addText( $nrr6);
-        $table->addCell(800)->addText( $nrr7);
-        $table->addCell(800)->addText( $nrr8);
-        $table->addCell(800)->addText( $nrr9);
-        $table->addCell(800)->addText( $nrr);
-
-        if ($nrr1 >= 0.0 and $nrr1 <= 0.99) { $knrr1 =  'E'; } elseif ($nrr1 >= 1.0 and $nrr1 <= 2.599) { $knrr1 =  'D'; } elseif ($nrr1 >= 2.6 and $nrr1 <= 3.064) { $knrr1 =  'C'; } elseif ($nrr1 >= 3.064 and $nrr1 <= 3.532) { $knrr1 =  'B'; } else { $knrr1 =  'A'; }
-        if ($nrr2 >= 0.0 and $nrr2 <= 0.99) { $knrr2 =  'E'; } elseif ($nrr2 >= 2.0 and $nrr2 <= 2.599) { $knrr2 =  'D'; } elseif ($nrr2 >= 2.6 and $nrr2 <= 3.064) { $knrr2 =  'C'; } elseif ($nrr2 >= 3.064 and $nrr2 <= 3.532) { $knrr2 =  'B'; } else { $knrr2 =  'A'; }
-        if ($nrr3 >= 0.0 and $nrr3 <= 0.99) { $knrr3 =  'E'; } elseif ($nrr3 >= 3.0 and $nrr3 <= 2.599) { $knrr3 =  'D'; } elseif ($nrr3 >= 2.6 and $nrr3 <= 3.064) { $knrr3 =  'C'; } elseif ($nrr3 >= 3.064 and $nrr3 <= 3.532) { $knrr3 =  'B'; } else { $knrr3 =  'A'; }
-        if ($nrr4 >= 0.0 and $nrr4 <= 0.99) { $knrr4 =  'E'; } elseif ($nrr4 >= 4.0 and $nrr4 <= 2.599) { $knrr4 =  'D'; } elseif ($nrr4 >= 2.6 and $nrr4 <= 3.064) { $knrr4 =  'C'; } elseif ($nrr4 >= 3.064 and $nrr4 <= 3.532) { $knrr4 =  'B'; } else { $knrr4 =  'A'; }
-        if ($nrr5 >= 0.0 and $nrr5 <= 0.99) { $knrr5 =  'E'; } elseif ($nrr5 >= 5.0 and $nrr5 <= 2.599) { $knrr5 =  'D'; } elseif ($nrr5 >= 2.6 and $nrr5 <= 3.064) { $knrr5 =  'C'; } elseif ($nrr5 >= 3.064 and $nrr5 <= 3.532) { $knrr5 =  'B'; } else { $knrr5 =  'A'; }
-        if ($nrr6 >= 0.0 and $nrr6 <= 0.99) { $knrr6 =  'E'; } elseif ($nrr6 >= 6.0 and $nrr6 <= 2.599) { $knrr6 =  'D'; } elseif ($nrr6 >= 2.6 and $nrr6 <= 3.064) { $knrr6 =  'C'; } elseif ($nrr6 >= 3.064 and $nrr6 <= 3.532) { $knrr6 =  'B'; } else { $knrr6 =  'A'; }
-        if ($nrr7 >= 0.0 and $nrr7 <= 0.99) { $knrr7 =  'E'; } elseif ($nrr7 >= 7.0 and $nrr7 <= 2.599) { $knrr7 =  'D'; } elseif ($nrr7 >= 2.6 and $nrr7 <= 3.064) { $knrr7 =  'C'; } elseif ($nrr7 >= 3.064 and $nrr7 <= 3.532) { $knrr7 =  'B'; } else { $knrr7 =  'A'; }
-        if ($nrr8 >= 0.0 and $nrr8 <= 0.99) { $knrr8 =  'E'; } elseif ($nrr8 >= 8.0 and $nrr8 <= 2.599) { $knrr8 =  'D'; } elseif ($nrr8 >= 2.6 and $nrr8 <= 3.064) { $knrr8 =  'C'; } elseif ($nrr8 >= 3.064 and $nrr8 <= 3.532) { $knrr8 =  'B'; } else { $knrr8 =  'A'; }
-        if ($nrr9 >= 0.0 and $nrr9 <= 0.99) { $knrr9 =  'E'; } elseif ($nrr9 >= 9.0 and $nrr9 <= 2.599) { $knrr9 =  'D'; } elseif ($nrr9 >= 2.6 and $nrr9 <= 3.064) { $knrr9 =  'C'; } elseif ($nrr9 >= 3.064 and $nrr9 <= 3.532) { $knrr9 =  'B'; } else { $knrr9 =  'A'; }
-
-        $templateProcessor->setValue(search: 'nrr1', replace: $nrr1);
-        $templateProcessor->setValue(search: 'nrr2', replace: $nrr2);
-        $templateProcessor->setValue(search: 'nrr3', replace: $nrr3);
-        $templateProcessor->setValue(search: 'nrr4', replace: $nrr4);
-        $templateProcessor->setValue(search: 'nrr5', replace: $nrr5);
-        $templateProcessor->setValue(search: 'nrr6', replace: $nrr6);
-        $templateProcessor->setValue(search: 'nrr7', replace: $nrr7);
-        $templateProcessor->setValue(search: 'nrr8', replace: $nrr8);
-        $templateProcessor->setValue(search: 'nrr9', replace: $nrr9);
-
-        $templateProcessor->setValue(search: 'knrr1', replace: $knrr1);
-        $templateProcessor->setValue(search: 'knrr2', replace: $knrr2);
-        $templateProcessor->setValue(search: 'knrr3', replace: $knrr3);
-        $templateProcessor->setValue(search: 'knrr4', replace: $knrr4);
-        $templateProcessor->setValue(search: 'knrr5', replace: $knrr5);
-        $templateProcessor->setValue(search: 'knrr6', replace: $knrr6);
-        $templateProcessor->setValue(search: 'knrr7', replace: $knrr7);
-        $templateProcessor->setValue(search: 'knrr8', replace: $knrr8);
-        $templateProcessor->setValue(search: 'knrr9', replace: $knrr9);
-
-        $table->addRow();
-        $table->addCell(200)->addText(  'NRR Tertimbang');
-        $table->addCell(500)->addText( $nrrt1);
-        $table->addCell(500)->addText( $nrrt2);
-        $table->addCell(500)->addText( $nrrt3);
-        $table->addCell(500)->addText( $nrrt4);
-        $table->addCell(500)->addText( $nrrt5);
-        $table->addCell(500)->addText( $nrrt6);
-        $table->addCell(500)->addText( $nrrt7);
-        $table->addCell(500)->addText( $nrrt8);
-        $table->addCell(500)->addText( $nrrt9);
-        $table->addCell(500)->addText( $nrrT);
-
-        $templateProcessor->setValue(search: 'nrrt1', replace: $nrrt1);
-        $templateProcessor->setValue(search: 'nrrt2', replace: $nrrt2);
-        $templateProcessor->setValue(search: 'nrrt3', replace: $nrrt3);
-        $templateProcessor->setValue(search: 'nrrt4', replace: $nrrt4);
-        $templateProcessor->setValue(search: 'nrrt5', replace: $nrrt5);
-        $templateProcessor->setValue(search: 'nrrt6', replace: $nrrt6);
-        $templateProcessor->setValue(search: 'nrrt7', replace: $nrrt7);
-        $templateProcessor->setValue(search: 'nrrt8', replace: $nrrt8);
-        $templateProcessor->setValue(search: 'nrrt9', replace: $nrrt9);
-
-        $table->addRow();
-        $table->addCell(200)->addText( 'Nilai SKM DISEPRINDAG KUTIM per'. $bulanAkhir. ' '. $tahun);
-        $table->addCell(500)->addText( '');
-        $table->addCell(500)->addText( '');
-        $table->addCell(500)->addText( '');
-        $table->addCell(500)->addText( '');
-        $table->addCell(500)->addText( '');
-        $table->addCell(500)->addText( '');
-        $table->addCell(500)->addText( '');
-        $table->addCell(500)->addText( '');
-        $table->addCell(500)->addText( '');
-        $table->addCell(500)->addText( sprintf('%0.3f', $nrrT * 25));
-        // }
-        // $phpWord = new TemplateProcessor('template.docx');
+        $table->addCell(900)->addText('Nilai SKM Kecamatan Long Bagun per ' . $periode['bulanAkhir'] . ' ' . $tahun);
+        foreach ($unsur as $u) {
+            $table->addCell(560)->addText('');
+        }
+        $table->addCell(900)->addText($angka($hasil['ikm'], 2));
         $templateProcessor->setComplexBlock('{tabelNilaiUnsurPelayanan}', $table);
 
-
+        // --- Tabel 7: saran
         $table = new Table(array('unit' => TblWidth::TWIP));
-        // foreach ($details as $detail) {
         $table->addRow();
-        $table->addCell(700)->addText("No.");
-        $table->addCell(8000)->addText("Saran Perbaikan");
-
-        foreach($nilaiUnsur as $k=>$item){
+        $table->addCell(700)->addText('No.');
+        $table->addCell(8000)->addText('Saran Perbaikan');
+        $saran = $responden->pluck('saran')->filter(fn ($s) => trim((string) $s) !== '')->values();
+        foreach ($saran as $k => $isi) {
             $table->addRow();
-            $table->addCell(200)->addText( $k++);
-            $table->addCell(5000)->addText( $item->saran);
+            $table->addCell(700)->addText($k + 1);
+            $table->addCell(8000)->addText($isi);
         }
-
+        if ($saran->isEmpty()) {
+            $table->addRow();
+            $table->addCell(700)->addText('-');
+            $table->addCell(8000)->addText('Tidak ada saran pada periode ini.');
+        }
         $templateProcessor->setComplexBlock('{tabelSaran}', $table);
-        //save template with table
-        $templateProcessor->saveAs('Laporan SKM DISPERINDAG KUTIM Semester '.$semester.' Tahun '.$tahun.'.docx');
-        return response()->download('Laporan SKM DISPERINDAG KUTIM Semester '.$semester.' Tahun '.$tahun.'.docx')->deleteFileAfterSend(true);
+
+        $namaFile = 'Laporan SKM Kecamatan Long Bagun Semester ' . $periode['semester'] . ' Tahun ' . $tahun . '.docx';
+        $path = storage_path('app/' . $namaFile);
+        $templateProcessor->saveAs($path);
+
+        return response()->download($path)->deleteFileAfterSend(true);
     }
 
     // $document_with_table = new \PhpOffice\PhpWord\PhpWord();

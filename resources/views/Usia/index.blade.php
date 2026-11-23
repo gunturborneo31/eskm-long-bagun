@@ -4,7 +4,7 @@
     <div class="absolute top-0 left-[215px] h-screen w-10/12 p-2">
         <div class="bg-white h-full w-full rounded-xl p-3  mb-2">
             <div class="flex w-full justify-between items-center -mt-3">
-                <p class="text-[25px] font-black text-[#01683d]">RESUME / USIA</p>
+                <p class="text-[25px] font-black text-[#137A5E]">RESUME / USIA</p>
                 <div class="flex justify-between items-center py-4 ">
                     <div>
                         <label class="text-white font-bold text-xl"> </label>
@@ -25,12 +25,12 @@
                     <div class="flex flex-row items-center gap-3">
                         {{-- Usia --}}
                         <div class="flex flex-row items-center gap-2">
-                            <label for="countries" class=" font-bold text-[#01683d] text-sm whitespace-nowrap">
+                            <label for="countries" class=" font-bold text-[#137A5E] text-sm whitespace-nowrap">
                                 Usia</label>
                             <?php if($_GET['Tahun'] == ''){ ?>
                             <select id="tahun"
                                 onChange="document.location.href='usia?filter=' + this.value + '&Tahun=' + {{ $_GET['Tahun'] == null ? '2024' : $_GET['Tahun'] }} + '&Bulan=' + {{ $_GET['Bulan'] == null ? '1' : $_GET['Bulan'] }} "
-                                class="bg-white border border-gray-300 text-[#005C3A] font-bold text-sm rounded-full px-3 py-1">
+                                class="bg-white border border-gray-300 text-[#137A5E] font-bold text-sm rounded-full px-3 py-1">
                                 <option value="1">Semua</option>
                                 <option value="2">20 - 29 Tahun</option>
                                 <option value="3">30 - 39 Tahun</option>
@@ -40,7 +40,7 @@
                             <?php  } else {?>
                             <select id="tahun"
                                 onChange="document.location.href='usia?filter=' + this.value + '&Tahun=' + {{ $_GET['Tahun'] == null ? '2024' : $_GET['Tahun'] }} + '&Bulan=' + {{ $_GET['Bulan'] == null ? '1' : $_GET['Bulan'] }} "
-                                class="bg-white border border-gray-300 text-[#005C3A] font-bold   text-sm rounded-full px-3 py-1">
+                                class="bg-white border border-gray-300 text-[#137A5E] font-bold   text-sm rounded-full px-3 py-1">
                                 <option value="1" <?php
                                 if ($_GET['filter'] == '1') {
                                     echo 'selected';
@@ -82,49 +82,19 @@
                         </div>
                         {{-- tahun --}}
                         <div class="flex flex-row items-center gap-2">
-                            <label for="countries" class=" font-bold text-[#01683d] text-sm ">
+                            <label for="countries" class=" font-bold text-[#137A5E] text-sm ">
                                 Tahun</label>
                             <?php if($_GET['Tahun'] == ''){ ?>
                             <select id="tahun"
                                 onChange="document.location.href='usia?filter=' + {{ $_GET['filter'] == null ? '1' : $_GET['filter'] }} + '&Tahun=' + this.value + '&Bulan=' + {{ $_GET['Bulan'] == null ? '1' : $_GET['Bulan'] }} "
-                                class="bg-white border border-gray-300 text-[#005C3A] font-bold text-sm rounded-full px-3 py-1">
-                                <option value="2023" <?php if (date('Y') == '2023') {
-                                } else {
-                                } ?>>2023</option>
-
-                                <option value="2024" <?php if (date('Y') == '2024') {
-                                    echo 'selected';
-                                } else {
-                                } ?>>2024</option>
-
-                                <option value="2025" <?php if (date('Y') == '2025') {
-                                } else {
-                                } ?>>2025</option>
+                                class="bg-white border border-gray-300 text-[#137A5E] font-bold text-sm rounded-full px-3 py-1">
+                                @include('partials.year_options', ['selectedYear' => !empty($_GET['Tahun']) ? (int) $_GET['Tahun'] : (int) date('Y')])
                             </select>
                             <?php  } else {?>
                             <select id="tahun"
                                 onChange="document.location.href='usia?filter=' + {{ $_GET['filter'] == null ? '1' : $_GET['filter'] }} + '&Tahun=' + this.value + '&Bulan=' + {{ $_GET['Bulan'] == null ? '1' : $_GET['Bulan'] }} "
-                                class="bg-white border border-gray-300 text-[#005C3A] font-bold   text-sm rounded-full px-3 py-1">
-                                <option value="2023" <?php
-                                if ($_GET['Tahun'] == '2023') {
-                                    echo 'selected';
-                                } else {
-                                }
-                                ?>>2023</option>
-
-                                <option value="2024" <?php
-                                if ($_GET['Tahun'] == '2024') {
-                                    echo 'selected';
-                                } else {
-                                }
-                                ?>>2024</option>
-
-                                <option value="2025" <?php
-                                if ($_GET['Tahun'] == '2025') {
-                                    echo 'selected';
-                                } else {
-                                }
-                                ?>>2025</option>
+                                class="bg-white border border-gray-300 text-[#137A5E] font-bold   text-sm rounded-full px-3 py-1">
+                                @include('partials.year_options', ['selectedYear' => !empty($_GET['Tahun']) ? (int) $_GET['Tahun'] : (int) date('Y')])
                             </select>
                             <?php
                     }?>
@@ -132,11 +102,11 @@
                         </div>
                         {{-- bulan --}}
                         <div class="flex flex-row items-center gap-2">
-                            <label for="countries" class=" font-bold text-[#01683d] text-sm ">
+                            <label for="countries" class=" font-bold text-[#137A5E] text-sm ">
                                 Bulan</label>
                             <select id="countries" id="language"
                                 onChange="document.location.href='usia?filter=' + {{ $_GET['filter'] == null ? '1' : $_GET['filter'] }} + '&Tahun=' + {{ $_GET['Tahun'] == null ? '2024' : $_GET['Tahun'] }} + '&Bulan=' + this.value "
-                                class="bg-white border border-gray-300 text-[#01683d] border-[#01683d] font-bold   text-sm rounded-full px-3 py-1">
+                                class="bg-white border border-gray-300 text-[#137A5E] border-[#137A5E] font-bold   text-sm rounded-full px-3 py-1">
                                 <option value="1" <?php
                                 if ($_GET['Bulan'] == '1') {
                                     echo 'selected';
@@ -225,7 +195,7 @@
 
                         {{-- download --}}
                         <a href="/exportUsia?filter={{ $_GET['filter'] == null ? 1 : $_GET['filter'] }}&Tahun={{ $_GET['Tahun'] == null ? 1 : $_GET['Tahun'] }}&Bulan={{ $_GET['Bulan'] == null ? 1 : $_GET['Bulan'] }}"
-                            class="py-1 text-center items-center  bg-[#155748] rounded-full font-bold text-sm px-3  w-full  text-white"
+                            class="py-1 text-center items-center  bg-[#137A5E] rounded-full font-bold text-sm px-3  w-full  text-white"
                             style="font-family:'Roboto'">
                             <p>DOWNLOAD</p>
                         </a>
@@ -237,9 +207,9 @@
             <div class="w-full ">
                 <div class="-m-1.5  ">
                     <div class="p-1.5 ">
-                        <div class="border border-[#1d6835] rounded-lg overflow-hidden h-[460px]">
+                        <div class="border border-[#137A5E] rounded-lg overflow-hidden h-[460px]">
                             <table class="w-full divide-y divide-gray-200 ">
-                                <thead class="bg-gradient-to-br from-[#1d6835] to-[#007e3f]">
+                                <thead class="bg-gradient-to-br from-[#137A5E] to-[#137A5E]">
                                     <tr>
                                         <th scope="col"
                                             class="px-6 py-3 w-[50px] text-center text-xs font-medium text-white uppercase">

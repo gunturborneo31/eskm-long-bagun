@@ -16,15 +16,15 @@
 <body class="items-center bg-fixed
      bg-no-repeat"
     style="
-    background-color: #51a592;
+    background-color: #137A5E;
     background-image:
-        radial-gradient(at -30% -30%, #02A859, transparent 80%),
-        radial-gradient(at 130% 150%, #02A859, transparent 80%);">
+        radial-gradient(at -30% -30%, #137A5E, transparent 80%),
+        radial-gradient(at 130% 150%, #137A5E, transparent 80%);">
     <div class="m-auto flex flex-col h-screen items-center justify-center">
         <div class="fixed insert-0 bg-opacity-50 overflow-y-auto w-full" id="modal">
             <div class="relative mx-auto p-5 border lg:w-1/2 w-5/6 shadow-lg rounded-md bg-white">
                 <div class="mt-3 text-center">
-                    <div class="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-[#02A859] mb-5">
+                    <div class="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-[#137A5E] mb-5">
                         <svg class="lg:h-12 lg:w-12 h-24 w-24 text-white" fill="none" stroke="currentColor"
                             viewBox="0 0 24 24" xmlnx="http://www.w.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
@@ -41,9 +41,9 @@
                     <div class="items-center px-4 py-3">
                         <a href="/">
                             <button id="ok-btn"
-                                class="px-4 py-2 bg-[#02A859] text-white
+                                class="px-4 py-2 bg-[#137A5E] text-white
                             lg:text-base text-4xl font-medium rounded-md w-full
-                            shadow-sm hover:bg-[#308a5e] focus:outline-none focus:ring-2 focus:ring-purple-300">
+                            shadow-sm hover:bg-[#137A5E] focus:outline-none focus:ring-2 focus:ring-purple-300">
                                 OK
                             </button></a>
 
